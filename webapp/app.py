@@ -1,9 +1,12 @@
 """Pittsfield Township Property Tax Assessment Analyzer — Streamlit App."""
 
+import io
 import os
 
 import streamlit as st
 import pandas as pd
+from docx import Document
+from fpdf import FPDF
 
 from data_loader import load_all_data
 from rc_parser import parse_rc_pdf, PropertyData, AssessmentYear
@@ -48,6 +51,30 @@ def check_password() -> bool:
                 else:
                     st.error("Incorrect password.")
     return False
+
+
+def _generate_docx(text: str) -> bytes:
+    """Generate a DOCX file from the appeal summary text."""
+    doc = Document()
+    doc.add_heading("Property Tax Appeal Petition", level=1)
+    for line in text.split("\n"):
+        doc.add_paragraph(line)
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+def _generate_pdf(text: str) -> bytes:
+    """Generate a PDF file from the appeal summary text."""
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "Property Tax Appeal Petition", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+    pdf.set_font("Helvetica", size=10)
+    for line in text.split("\n"):
+        pdf.multi_cell(0, 5, line)
+    return bytes(pdf.output())
 
 
 def main():
@@ -537,16 +564,36 @@ def main():
         else:
             st.code(summary, language=None)
 
-            fname = f"L4035_Petition_{area_code}_{sev}.txt"
+            base_name = f"L4035_Petition_{area_code}_{sev}"
             if prop and prop.address:
                 addr_slug = prop.address.replace(" ", "_").replace(",", "")
-                fname = f"L4035_Petition_{addr_slug}.txt"
-            st.download_button(
-                label="Download Appeal Petition as Text",
-                data=summary,
-                file_name=fname,
-                mime="text/plain",
-            )
+                base_name = f"L4035_Petition_{addr_slug}"
+
+            dl1, dl2, dl3 = st.columns(3)
+            with dl1:
+                st.download_button(
+                    label="Download as Text",
+                    data=summary,
+                    file_name=f"{base_name}.txt",
+                    mime="text/plain",
+                    use_container_width=True,
+                )
+            with dl2:
+                st.download_button(
+                    label="Download as DOCX",
+                    data=_generate_docx(summary),
+                    file_name=f"{base_name}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                )
+            with dl3:
+                st.download_button(
+                    label="Download as PDF",
+                    data=_generate_pdf(summary),
+                    file_name=f"{base_name}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
 
             st.divider()
             st.subheader("Next Steps")

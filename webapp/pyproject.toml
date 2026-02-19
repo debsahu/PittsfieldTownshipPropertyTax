@@ -4,10 +4,12 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.14"
 dependencies = [
+    "fpdf2>=2.8.3",
     "numpy>=2.4.2",
     "pandas>=2.3.3",
     "plotly>=6.5.2",
     "pymupdf>=1.27.1",
+    "python-docx>=1.1.2",
     "pytesseract>=0.3.13",
     "streamlit>=1.54.0",
 ]
