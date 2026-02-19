@@ -71,16 +71,16 @@ def _generate_pdf(text: str) -> bytes:
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 10, "Property Tax Appeal Petition", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
-    # Use Courier 7pt so wide table lines (~95 chars) fit within margins
+    # Courier 7pt fits ~113 chars in the printable width on A4
     pdf.set_font("Courier", size=7)
     usable_w = pdf.w - pdf.l_margin - pdf.r_margin
-    char_w = pdf.get_string_width("W") or 1
-    max_chars = int(usable_w / char_w)
     for line in text.split("\n"):
-        # Truncate any line that exceeds the printable width
-        if len(line) > max_chars:
-            line = line[:max_chars]
-        pdf.multi_cell(0, 3.5, line)
+        # Reset X to left margin before every line to prevent cursor drift
+        pdf.set_x(pdf.l_margin)
+        # Trim line if it's wider than the page (measure actual rendered width)
+        while line and pdf.get_string_width(line) > usable_w:
+            line = line[:-1]
+        pdf.multi_cell(usable_w, 3.5, line)
     return bytes(pdf.output())
 
 
