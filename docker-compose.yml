@@ -1,0 +1,25 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - 8501
+    environment:
+      - APP_PASSWORD=${APP_PASSWORD}
+    networks:
+      - dokploy-network
+      - default
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+networks:
+  dokploy-network:
+    external: true

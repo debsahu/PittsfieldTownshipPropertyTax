@@ -1,0 +1,13 @@
+.git
+.gitignore
+.vscode
+.DS_Store
+__pycache__
+*.pyc
+4806PaulinaDr/
+4333RollingMeadowLn/
+analysis/PaulinaDrAnalysis/
+LICENSE
+README.md
+webapp/__pycache__
+webapp/.venv

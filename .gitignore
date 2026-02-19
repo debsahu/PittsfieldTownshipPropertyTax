@@ -1,2 +1,11 @@
 4806PaulinaDr/
-.vscode/.DS_Store
+4333RollingMeadowLn/
+.vscode/
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+webapp/.streamlit/secrets.toml
+.env
+.env.production
+4333RollingMeadowLn/*
