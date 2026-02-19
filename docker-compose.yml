@@ -11,6 +11,12 @@ services:
     networks:
       - dokploy-network
       - default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pittsfield-taxes.rule=Host(`${APP_DOMAIN:-pittsfieldtaxes.s3techinnovations.com}`)"
+      - "traefik.http.routers.pittsfield-taxes.entrypoints=websecure"
+      - "traefik.http.routers.pittsfield-taxes.tls=true"
+      - "traefik.http.services.pittsfield-taxes.loadbalancer.server.port=8501"
     deploy:
       resources:
         limits:
