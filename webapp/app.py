@@ -42,7 +42,7 @@ def check_password() -> bool:
         st.caption("Property Tax Analyzer")
         with st.form("login_form"):
             password = st.text_input("Password", type="password", key="password_input")
-            submitted = st.form_submit_button("Submit", type="primary", use_container_width=True)
+            submitted = st.form_submit_button("Submit", type="primary", width="stretch")
             if submitted:
                 expected = os.environ.get("APP_PASSWORD") or st.secrets.get("APP_PASSWORD", "pittsfield2026")
                 if password == expected:
@@ -353,9 +353,9 @@ def main():
     with tabs[tab_idx]:
         col_left, col_right = st.columns(2)
         with col_left:
-            st.plotly_chart(ecf_trend_chart(ecf_trend), use_container_width=True)
+            st.plotly_chart(ecf_trend_chart(ecf_trend), width="stretch")
         with col_right:
-            st.plotly_chart(ecf_distribution_chart(ecf_props), use_container_width=True)
+            st.plotly_chart(ecf_distribution_chart(ecf_props), width="stretch")
 
         # ECF Explanation
         if ecf_2026 is not None:
@@ -396,7 +396,7 @@ def main():
                 display_df["ECF"] = display_df["ECF"].apply(
                     lambda x: f"{x:.3f}" if pd.notna(x) else "N/A"
                 )
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.dataframe(display_df, width="stretch", hide_index=True)
     tab_idx += 1
 
     # --- Tab: Comparable Sales ---
@@ -408,13 +408,13 @@ def main():
             # Value comparison bar
             median_sale = sales_stats.get("median")
             st.plotly_chart(assessment_comparison_chart(user_tcv, ecf_adjusted, median_sale),
-                            use_container_width=True)
+                            width="stretch")
 
             col_left, col_right = st.columns(2)
             with col_left:
-                st.plotly_chart(sales_scatter_chart(sales_df, user_tcv), use_container_width=True)
+                st.plotly_chart(sales_scatter_chart(sales_df, user_tcv), width="stretch")
             with col_right:
-                st.plotly_chart(sales_histogram(sales_df, user_tcv), use_container_width=True)
+                st.plotly_chart(sales_histogram(sales_df, user_tcv), width="stretch")
 
             # Stats summary
             st.subheader("Sales Statistics")
@@ -443,7 +443,7 @@ def main():
                 display_sales[col] = display_sales[col].apply(
                     lambda x: f"${x:,.0f}" if pd.notna(x) else "N/A"
                 )
-            st.dataframe(display_sales, use_container_width=True, hide_index=True)
+            st.dataframe(display_sales, width="stretch", hide_index=True)
     tab_idx += 1
 
     # --- Tab: Land Values ---
@@ -451,7 +451,7 @@ def main():
         if not land_trends:
             st.warning(f"No land value data found for {area_code}.")
         else:
-            st.plotly_chart(land_trend_chart(land_trends), use_container_width=True)
+            st.plotly_chart(land_trend_chart(land_trends), width="stretch")
 
             # Land trends table
             st.subheader("Land Value Details")
@@ -465,7 +465,7 @@ def main():
                     "Change": f"{(factor - 1) * 100:+.1f}%" if factor else "N/A",
                     "Current Land Value": f"${lt['current_lv']:,.0f}" if lt.get("current_lv") else "N/A",
                 })
-            st.dataframe(pd.DataFrame(lt_rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(lt_rows), width="stretch", hide_index=True)
 
             # Cumulative change
             first_prior = next((lt["prior_lv"] for lt in land_trends if lt.get("prior_lv")), None)
@@ -478,7 +478,7 @@ def main():
 
     # --- Tab: Sales Coverage ---
     with tabs[tab_idx]:
-        st.plotly_chart(sales_coverage_chart(coverage), use_container_width=True)
+        st.plotly_chart(sales_coverage_chart(coverage), width="stretch")
 
         cov_2026 = coverage.get(2026, 0)
         cov_2025 = coverage.get(2025, 0)
@@ -507,7 +507,7 @@ def main():
     if prop and prop.assessment_history:
         with tabs[tab_idx]:
             st.plotly_chart(assessment_history_chart(prop.assessment_history),
-                            use_container_width=True)
+                            width="stretch")
 
             # Year-over-year changes
             st.subheader("Year-over-Year Assessment Changes")
@@ -528,7 +528,7 @@ def main():
                     row["SEV Change"] = ""
                 prev_assessed = h.assessed_value
                 hist_rows.append(row)
-            st.dataframe(pd.DataFrame(hist_rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(hist_rows), width="stretch", hide_index=True)
 
             # Cost approach details from RC.pdf
             if prop.total_base_new or prop.total_depr_cost:
@@ -583,7 +583,7 @@ def main():
                     data=summary,
                     file_name=f"{base_name}.txt",
                     mime="text/plain",
-                    use_container_width=True,
+                    width="stretch",
                 )
             with dl2:
                 st.download_button(
@@ -591,7 +591,7 @@ def main():
                     data=_generate_docx(summary),
                     file_name=f"{base_name}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True,
+                    width="stretch",
                 )
             with dl3:
                 st.download_button(
@@ -599,7 +599,7 @@ def main():
                     data=_generate_pdf(summary),
                     file_name=f"{base_name}.pdf",
                     mime="application/pdf",
-                    use_container_width=True,
+                    width="stretch",
                 )
 
             st.divider()
