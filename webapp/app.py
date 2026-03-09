@@ -14,7 +14,7 @@ from analysis_engine import (
     get_ecf_trend, get_ecf_properties, get_subdivision_name,
     get_comparable_sales, compute_sales_stats, get_land_value_trends,
     check_sales_coverage, compute_ecf_adjusted_value, get_overvaluation_pct,
-    generate_appeal_summary, _compute_recommended_values,
+    generate_appeal_summary, _compute_recommended_values, get_area_median_cost_man,
 )
 from charts import (
     ecf_trend_chart, ecf_distribution_chart, sales_scatter_chart,
@@ -185,6 +185,14 @@ def main():
                     st.caption(f"{k}: **{v}**")
         else:
             st.divider()
+            # Floor area is required when no RC.pdf — needed for sqft-based scaling
+            m_floor_area = st.number_input(
+                "Floor Area (SF) *",
+                min_value=0, max_value=20000, value=0, step=100, format="%d",
+                help="Required for property-specific recommendation. Find on BSA Online or your tax notice.",
+            )
+            if m_floor_area == 0:
+                st.warning("Please enter your floor area (SF) for a property-specific recommendation.")
             with st.expander("Property Details (manual entry)", expanded=False):
                 st.caption("Optional — fills in the petition with your property info")
                 m_address = st.text_input("Property Address", placeholder="e.g. 4806 PAULINA DR")
@@ -194,8 +202,6 @@ def main():
                                        "BUNGALOW", "BI-LEVEL"], index=0)
                 m_year_built = st.number_input("Year Built", min_value=0, max_value=2026,
                                                 value=0, step=1, format="%d")
-                m_floor_area = st.number_input("Floor Area (SF)", min_value=0, max_value=20000,
-                                                value=0, step=100, format="%d")
                 m_basement = st.number_input("Basement (SF)", min_value=0, max_value=10000,
                                               value=0, step=100, format="%d")
                 m_condition = st.selectbox("Condition", options=["", "Excellent", "Very Good",
@@ -309,6 +315,7 @@ def main():
     ecf_2026 = ecf_trend.get(2026)
     ecf_adjusted = compute_ecf_adjusted_value(ecf_2026, user_tcv)
     overval_pct = get_overvaluation_pct(ecf_2026)
+    area_med_cost = get_area_median_cost_man(data, area_code)
 
     # --- Header ---
     header = f"{area_code} — {subdivision}"
@@ -317,7 +324,8 @@ def main():
     st.title(header)
 
     # Compute recommended (moderate) values
-    rec_low, rec_high = _compute_recommended_values(ecf_2026, user_tcv, sales_stats, prop=prop)
+    rec_low, rec_high = _compute_recommended_values(ecf_2026, user_tcv, sales_stats, prop=prop,
+                                                     area_median_cost_man=area_med_cost)
     rec_sev = round(rec_low / 2 / 5000) * 5000
     rec_tcv = rec_sev * 2
 
@@ -568,6 +576,7 @@ def main():
             area_code, subdivision, sev,
             ecf_trend, sales_stats, land_trends, coverage, ecf_props,
             sales_df=sales_df, prop=prop,
+            area_median_cost_man=area_med_cost,
         )
 
         if no_appeal:

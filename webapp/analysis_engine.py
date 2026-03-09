@@ -186,16 +186,40 @@ def get_overvaluation_pct(ecf: float | None) -> float | None:
     return (1 - ecf) * 100
 
 
+def get_area_median_cost_man(data: dict, area_code: str) -> float | None:
+    """Get the median Cost_Man (cost-approach value) for an area.
+
+    Uses the most recent year with enough data points (prefer 2024 which
+    has the most sales, then 2025, then 2026).
+    """
+    for year in [2024, 2025, 2026]:
+        if year not in data.get("ecf_analysis", {}):
+            continue
+        df = data["ecf_analysis"][year]
+        area_col = "ECF_Area_Code" if "ECF_Area_Code" in df.columns else "ECF_Area"
+        if area_col not in df.columns or "Cost_Man" not in df.columns:
+            continue
+        area_df = df[df[area_col] == area_code]
+        costs = area_df["Cost_Man"].dropna()
+        if len(costs) >= 3:
+            return float(costs.median())
+    return None
+
+
 def _compute_recommended_values(ecf_2026: float | None, user_tcv: float,
                                  sales_stats: dict,
-                                 prop=None) -> tuple[float, float]:
+                                 prop=None,
+                                 area_median_cost_man: float | None = None,
+                                 ) -> tuple[float, float]:
     """Compute recommended TCV range (low, high) for the appeal.
 
-    When a Record Card is available with cost-approach data and ECF < 1.0,
-    the primary recommendation is the ECF-adjusted cost-approach TCV, which
-    is property-specific (accounts for sqft, condition, age, etc.).
+    Primary approach: sales-median scaled by property size relative to area.
+      recommended = sales_median * (total_depr_cost / area_median_cost_man)
 
-    Otherwise falls back to area-level median of comparable sales.
+    total_depr_cost is proportional to sqft/condition/age, so this makes the
+    recommendation property-specific while anchoring to actual sales data.
+
+    Falls back to averaging prop_ecf_tcv + sales median, or plain median.
     """
     candidates = []
     if ecf_2026 is not None and ecf_2026 < 1.0:
@@ -207,7 +231,6 @@ def _compute_recommended_values(ecf_2026: float | None, user_tcv: float,
         return user_tcv, user_tcv
 
     # Property-specific ECF-adjusted cost approach value
-    # (cost approach already scales by sqft, condition, age, style)
     prop_ecf_tcv = None
     if (prop and prop.total_depr_cost and prop.total_depr_cost > 0
             and ecf_2026 is not None and ecf_2026 < 1.0):
@@ -216,15 +239,34 @@ def _compute_recommended_values(ecf_2026: float | None, user_tcv: float,
     has_sales = sales_stats.get("count", 0) > 0
     median = sales_stats.get("median", 0) if has_sales else 0
 
-    if has_sales and prop_ecf_tcv:
+    # Try sqft-scaled sales approach: median * (property_cost / area_median_cost)
+    # With RC.pdf: total_depr_cost is the precise cost-approach value (scales w/ sqft)
+    # Without RC.pdf: estimate cost from user_tcv (assessor's cost-based TCV)
+    prop_cost = None
+    if prop and prop.total_depr_cost and prop.total_depr_cost > 0:
+        prop_cost = prop.total_depr_cost
+    elif user_tcv > 0 and prop and prop.floor_area and prop.floor_area > 0:
+        # No RC.pdf — user_tcv is assessor's cost-based value, use as proxy
+        prop_cost = user_tcv
+    scale_factor = None
+    if prop_cost and area_median_cost_man and area_median_cost_man > 0:
+        scale_factor = prop_cost / area_median_cost_man
+
+    if has_sales and scale_factor is not None:
+        scaled_value = median * scale_factor
         if median >= user_tcv:
             # Sales median at/above assessed TCV -- no basis for appeal
             primary = median
+        elif scaled_value >= user_tcv:
+            # Scaled value exceeds TCV (property is larger than area average),
+            # but median is still below TCV — use median as the recommendation
+            primary = median
         else:
-            # Both prop_ecf_tcv and sales median are below TCV.
-            # Average them for a property-specific yet moderate value.
-            # prop_ecf_tcv varies by property (sqft, condition, age),
-            # while sales median anchors to market.
+            primary = scaled_value
+    elif has_sales and prop_ecf_tcv:
+        if median >= user_tcv:
+            primary = median
+        else:
             primary = (prop_ecf_tcv + median) / 2
     elif has_sales:
         primary = median
@@ -242,7 +284,9 @@ def generate_appeal_summary(area_code: str, subdivision: str, user_sev: float,
                             land_trends: list, coverage: dict,
                             ecf_properties: list,
                             sales_df: pd.DataFrame | None = None,
-                            prop=None) -> str:
+                            prop=None,
+                            area_median_cost_man: float | None = None,
+                            ) -> str:
     """Generate a comprehensive L4035-style appeal petition.
 
     Args:
@@ -252,7 +296,8 @@ def generate_appeal_summary(area_code: str, subdivision: str, user_sev: float,
     user_tcv = user_sev * 2
     ecf_2026 = ecf_trend.get(2026)
     ecf_adjusted = user_tcv * ecf_2026 if ecf_2026 and ecf_2026 < 1.0 else None
-    rec_low, rec_high = _compute_recommended_values(ecf_2026, user_tcv, sales_stats, prop=prop)
+    rec_low, rec_high = _compute_recommended_values(ecf_2026, user_tcv, sales_stats, prop=prop,
+                                                     area_median_cost_man=area_median_cost_man)
     rec_sev = round(rec_low / 2 / 5000) * 5000  # Round to nearest $5,000
 
     # If recommended value >= current assessment, no basis for appeal
@@ -380,8 +425,30 @@ def generate_appeal_summary(area_code: str, subdivision: str, user_sev: float,
     L.append("")
 
     # Show how the recommended value was derived
+    prop_cost = None
+    if prop and prop.total_depr_cost and prop.total_depr_cost > 0:
+        prop_cost = prop.total_depr_cost
+    elif user_tcv > 0 and prop and prop.floor_area and prop.floor_area > 0:
+        prop_cost = user_tcv  # Use assessed TCV as cost proxy when no RC.pdf
+    scale_factor = None
+    if prop_cost and area_median_cost_man and area_median_cost_man > 0:
+        scale_factor = prop_cost / area_median_cost_man
+
     L.append("Basis for petitioner's value:")
-    if prop_ecf_tcv:
+    if scale_factor is not None and sales_stats.get("count", 0) > 0:
+        median = sales_stats["median"]
+        scaled_val = median * scale_factor
+        L.append(f"  Sales-comparison approach scaled by property size:")
+        L.append(f"  Median of {sales_stats['count']} comparable sales:       ${median:,.0f}")
+        L.append(f"  This property's cost-approach value:        ${prop_cost:,.0f}")
+        L.append(f"  Area median cost-approach value:            ${area_median_cost_man:,.0f}")
+        L.append(f"  Scale factor (property / area median):      {scale_factor:.3f}")
+        L.append(f"  Scaled value ({median:,.0f} x {scale_factor:.3f}):       ${scaled_val:,.0f}")
+        if prop and prop.floor_area:
+            ppsf = scaled_val / prop.floor_area
+            L.append(f"  Implied $/SF ({prop.floor_area:,} SF):                ${ppsf:,.0f}/SF")
+        L.append(f"  Recommended SEV (rounded to $5,000):       ${rec_sev:,.0f}")
+    elif prop_ecf_tcv:
         L.append(f"  Assessor's cost-approach TCV for this property: ${prop.total_depr_cost:,.0f}")
         L.append(f"  Township ECF for {area_code} (2026):              {ecf_2026:.3f}")
         L.append(f"  ECF-adjusted TCV ({prop.total_depr_cost:,.0f} x {ecf_2026:.3f}):  ${prop_ecf_tcv:,.0f}")
