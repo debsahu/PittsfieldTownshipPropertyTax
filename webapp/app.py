@@ -66,6 +66,19 @@ def _generate_docx(text: str) -> bytes:
 
 def _generate_pdf(text: str) -> bytes:
     """Generate a PDF file from the appeal summary text."""
+    # Sanitize Unicode chars that core PDF fonts can't render
+    text = (text
+            .replace("\u2014", "--")   # em dash
+            .replace("\u2013", "-")    # en dash
+            .replace("\u2018", "'")    # left single quote
+            .replace("\u2019", "'")    # right single quote
+            .replace("\u201c", '"')    # left double quote
+            .replace("\u201d", '"')    # right double quote
+            .replace("\u2022", "-")    # bullet
+            .replace("\u2026", "...")  # ellipsis
+            .replace("\u00d7", "x")   # multiplication sign
+            .replace("\u2192", "->")  # right arrow
+            )
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 16)
@@ -304,7 +317,7 @@ def main():
     st.title(header)
 
     # Compute recommended (moderate) values
-    rec_low, rec_high = _compute_recommended_values(ecf_2026, user_tcv, sales_stats)
+    rec_low, rec_high = _compute_recommended_values(ecf_2026, user_tcv, sales_stats, prop=prop)
     rec_sev = round(rec_low / 2 / 5000) * 5000
     rec_tcv = rec_sev * 2
 
